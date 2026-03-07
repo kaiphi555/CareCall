@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { mockPatients } from '../../data/mockData';
+import { mockPatients, medications as allMeds } from '../../data/mockData';
 import { useData } from '../../context/DataContext';
+import { triggerCall } from '../../services/api';
 
 export default function ScheduleCallPage() {
   const { calls, scheduleCall, cancelCall } = useData();
   const [showForm, setShowForm] = useState(false);
+  const [callStatus, setCallStatus] = useState({}); // { [callId]: 'calling' | 'success' | 'error' }
   const [form, setForm] = useState({
     patientId: 'p1',
     date: '',
@@ -23,6 +25,38 @@ export default function ScheduleCallPage() {
     });
     setForm({ patientId: 'p1', date: '', time: '', purpose: 'Medication reminder' });
     setShowForm(false);
+  };
+
+  const handleCallNow = async (call) => {
+    const patient = mockPatients.find(p => p.id === call.patientId);
+    if (!patient) return;
+
+    // Get the first medication for this patient as the reminder subject
+    const patientMeds = allMeds[call.patientId] || [];
+    const medName = patientMeds.length > 0 ? patientMeds[0].name : 'your medication';
+
+    setCallStatus(prev => ({ ...prev, [call.id]: 'calling' }));
+
+    try {
+      const result = await triggerCall({
+        patientName: patient.name,
+        medication: medName,
+        phoneNumber: patient.phone,
+      });
+      setCallStatus(prev => ({ ...prev, [call.id]: 'success' }));
+      console.log('Call triggered:', result);
+    } catch (err) {
+      setCallStatus(prev => ({ ...prev, [call.id]: 'error' }));
+      console.error('Call failed:', err);
+    }
+  };
+
+  const getStatusLabel = (callId, defaultStatus) => {
+    const s = callStatus[callId];
+    if (s === 'calling') return { text: 'Calling…', classes: 'bg-amber-500/15 text-amber-400 border-amber-500/20' };
+    if (s === 'success') return { text: 'Call Sent ✓', classes: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' };
+    if (s === 'error') return { text: 'Failed', classes: 'bg-red-500/15 text-red-400 border-red-500/20' };
+    return { text: defaultStatus, classes: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' };
   };
 
   return (
@@ -96,11 +130,8 @@ export default function ScheduleCallPage() {
                 type="submit"
                 className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-lg font-semibold rounded-xl shadow-lg shadow-purple-500/20 hover:shadow-xl transition-all"
               >
-                Schedule Call via Twilio →
+                Schedule Call →
               </button>
-              <p className="text-xs text-white/30 mt-2 text-center">
-                This will trigger a Twilio API call at the scheduled time (API integration pending)
-              </p>
             </div>
           </form>
         </div>
@@ -114,34 +145,44 @@ export default function ScheduleCallPage() {
             <p className="text-white/40 text-lg">No calls scheduled yet</p>
           </div>
         ) : (
-          calls.map(call => (
-            <div key={call.id} className="glass rounded-2xl p-5 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-xl flex items-center justify-center text-xl border border-white/10">
-                  📞
+          calls.map(call => {
+            const status = getStatusLabel(call.id, call.status);
+            return (
+              <div key={call.id} className="glass rounded-2xl p-5 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-xl flex items-center justify-center text-xl border border-white/10">
+                    📞
+                  </div>
+                  <div>
+                    <p className="font-semibold text-white">{call.patientName}</p>
+                    <p className="text-sm text-white/40">{call.purpose}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-white">{call.patientName}</p>
-                  <p className="text-sm text-white/40">{call.purpose}</p>
+                <div className="text-right flex items-center gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">{call.date}</p>
+                    <p className="text-sm text-white/40">{call.time}</p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${status.classes}`}>
+                    {status.text}
+                  </span>
+                  <button
+                    onClick={() => handleCallNow(call)}
+                    disabled={callStatus[call.id] === 'calling'}
+                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white text-sm font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {callStatus[call.id] === 'calling' ? '⏳' : '📞 Call Now'}
+                  </button>
+                  <button
+                    onClick={() => cancelCall(call.id)}
+                    className="px-3 py-1.5 text-red-400 hover:bg-red-500/10 rounded-lg text-sm font-medium transition-all"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
-              <div className="text-right flex items-center gap-4">
-                <div>
-                  <p className="text-sm font-medium text-white">{call.date}</p>
-                  <p className="text-sm text-white/40">{call.time}</p>
-                </div>
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                  {call.status}
-                </span>
-                <button
-                  onClick={() => cancelCall(call.id)}
-                  className="px-3 py-1.5 text-red-400 hover:bg-red-500/10 rounded-lg text-sm font-medium transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
