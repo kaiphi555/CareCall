@@ -1,0 +1,13 @@
+# React / Node
+node_modules/
+build/
+.DS_Store
+
+# Python
+__pycache__/
+venv/
+env/
+*.pyc
+
+# Security
+.env
