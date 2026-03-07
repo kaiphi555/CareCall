@@ -1,35 +1,83 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { DataProvider } from './context/DataContext';
 
-function App() {
-  const [count, setCount] = useState(0)
+import Navbar from './components/Navbar';
+import DemoToggle from './components/DemoToggle';
+
+import LandingPage from './pages/LandingPage';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+
+import PatientDashboard from './pages/patient/PatientDashboard';
+import RemindersPage from './pages/patient/RemindersPage';
+import WellnessPage from './pages/patient/WellnessPage';
+import ProfilePage from './pages/patient/ProfilePage';
+
+import CaretakerDashboard from './pages/caretaker/CaretakerDashboard';
+import PatientHub from './pages/caretaker/PatientHub';
+import PatientStatusPage from './pages/caretaker/PatientStatusPage';
+import CallLogsPage from './pages/caretaker/CallLogsPage';
+import AlertsPage from './pages/caretaker/AlertsPage';
+import CaretakerProfilePage from './pages/caretaker/CaretakerProfilePage';
+import ScheduleCallPage from './pages/caretaker/ScheduleCallPage';
+import WellnessConfigPage from './pages/caretaker/WellnessConfigPage';
+
+function AppRoutes() {
+  const { user } = useAuth();
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
+      {user && <Navbar />}
+      <main id="main-content">
+        <Routes>
+          {/* Public */}
+          <Route path="/" element={user ? <Navigate to="/dashboard" /> : <LandingPage />} />
+          <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <LoginPage />} />
+          <Route path="/signup" element={user ? <Navigate to="/dashboard" /> : <SignupPage />} />
+
+          {/* Patient routes */}
+          {user?.role === 'patient' && (
+            <>
+              <Route path="/dashboard" element={<PatientDashboard />} />
+              <Route path="/reminders" element={<RemindersPage />} />
+              <Route path="/wellness" element={<WellnessPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+            </>
+          )}
+
+          {/* Caretaker routes */}
+          {user?.role === 'caretaker' && (
+            <>
+              <Route path="/dashboard" element={<CaretakerDashboard />} />
+              <Route path="/patients" element={<PatientHub />} />
+              <Route path="/patient-status" element={<PatientStatusPage />} />
+              <Route path="/call-logs" element={<CallLogsPage />} />
+              <Route path="/alerts" element={<AlertsPage />} />
+              <Route path="/profile" element={<CaretakerProfilePage />} />
+              <Route path="/schedule-call" element={<ScheduleCallPage />} />
+              <Route path="/wellness-config" element={<WellnessConfigPage />} />
+            </>
+          )}
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to={user ? '/dashboard' : '/'} />} />
+        </Routes>
+      </main>
+      {user && <DemoToggle />}
     </>
-  )
+  );
 }
 
-export default App
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <DataProvider>
+          <AppRoutes />
+        </DataProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}

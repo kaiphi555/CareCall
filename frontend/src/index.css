@@ -1,1 +1,116 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  
+  /* New purple-blue gradient palette */
+  --color-primary-50: #f0eeff;
+  --color-primary-100: #e0ddff;
+  --color-primary-200: #c4b5fd;
+  --color-primary-300: #a78bfa;
+  --color-primary-400: #8b5cf6;
+  --color-primary-500: #7c3aed;
+  --color-primary-600: #6d28d9;
+  --color-primary-700: #5b21b6;
+  --color-primary-800: #4c1d95;
+  --color-primary-900: #3b0764;
+
+  /* Accent blues */
+  --color-accent-400: #60a5fa;
+  --color-accent-500: #3b82f6;
+  --color-accent-600: #2563eb;
+
+  /* App surface colors — dark elegant */
+  --color-care-bg: #0f0a1e;
+  --color-care-surface: rgba(255, 255, 255, 0.05);
+  --color-care-card: rgba(255, 255, 255, 0.08);
+  --color-care-card-hover: rgba(255, 255, 255, 0.12);
+  --color-care-border: rgba(255, 255, 255, 0.10);
+  --color-care-text: #f1f0f7;
+  --color-care-text-secondary: #c4b5fd;
+  --color-care-muted: #a89ec4;
+  --color-care-success: #34d399;
+  --color-care-warning: #fbbf24;
+  --color-care-danger: #f87171;
+  --color-care-info: #60a5fa;
+  
+  /* Wellness gradient steps */
+  --color-wellness-1: #7c3aed;
+  --color-wellness-2: #6366f1;
+  --color-wellness-3: #3b82f6;
+  --color-wellness-4: #8b5cf6;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-care-text);
+  background: var(--color-care-bg);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+}
+
+*:focus-visible {
+  outline: 3px solid var(--color-primary-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button, a {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 0;
+  padding: 1rem;
+  background: var(--color-primary-600);
+  color: white;
+  z-index: 100;
+  font-weight: 600;
+}
+.skip-link:focus { top: 0; }
+
+/* Glass card effect */
+.glass {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+
+/* Smooth page transitions */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeInUp 0.6s ease-out;
+}
