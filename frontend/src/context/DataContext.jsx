@@ -171,7 +171,9 @@ export function DataProvider({ children }) {
           patientId: s.patient_id,
           patientName: s.patient_name,
           answers: typeof s.answers === 'string' ? JSON.parse(s.answers) : s.answers,
+          aiFeedback: typeof s.ai_feedback === 'string' && s.ai_feedback ? JSON.parse(s.ai_feedback) : s.ai_feedback,
           timestamp: new Date(s.created_at).toLocaleString(),
+          createdAt: s.created_at,
         })));
       }
     } catch (err) {
@@ -229,14 +231,16 @@ export function DataProvider({ children }) {
     } catch (_) {}
   }, [user]);
 
-  // Submit wellness
-  const submitWellness = useCallback(async (patientId, patientName, answers) => {
+  // Submit wellness (with optional AI feedback)
+  const submitWellness = useCallback(async (patientId, patientName, answers, aiFeedback = null) => {
     const submission = {
       id: 'ws_' + Date.now(),
       patientId,
       patientName,
       answers,
       timestamp: new Date().toLocaleString(),
+      createdAt: new Date().toISOString(),
+      aiFeedback: aiFeedback || null,
     };
     setWellnessSubmissions(prev => [submission, ...prev]);
 
@@ -245,20 +249,28 @@ export function DataProvider({ children }) {
         patient_id: patientId,
         patient_name: patientName,
         answers,
+        ai_feedback: aiFeedback,
       }).select().single();
       if (data) submission.id = data.id;
     } catch (_) {}
 
-    const concerning = Object.values(answers).some(a =>
-      ['Not well', 'No', 'A little dizzy', 'Yes, uncomfortable'].includes(a)
-    );
+    // Use AI feedback for alert decision if available; otherwise fallback
+    const alertFromAI = aiFeedback?.alert_caretaker;
+    const concerning = alertFromAI !== undefined ? alertFromAI :
+      Object.values(answers).some(a =>
+        ['Not well', 'No', 'A little dizzy', 'Yes, uncomfortable'].includes(a)
+      );
+
+    const alertMessage = aiFeedback?.alert_reason
+      ? `⚠️ ${patientName}: ${aiFeedback.alert_reason}`
+      : concerning
+        ? `${patientName} reported concerning wellness responses`
+        : `${patientName} completed wellness check-in`;
 
     const newAlert = {
       id: 'a_' + Date.now(),
       type: concerning ? 'warning' : 'info',
-      message: concerning
-        ? `${patientName} reported concerning wellness responses`
-        : `${patientName} completed wellness check-in`,
+      message: alertMessage,
       time: 'Just now',
       priority: concerning ? 'high' : 'low',
       patientId,

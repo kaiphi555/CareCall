@@ -10,7 +10,7 @@ from twilio.rest import Client
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 from supabase import create_client
-import google.generativeai as genai
+from google import genai
 
 # Load .env
 load_dotenv()
@@ -31,12 +31,11 @@ sb = None
 if supabase_url and supabase_key:
     sb = create_client(supabase_url, supabase_key)
 
-# Gemini AI
+# Gemini AI (new google-genai SDK)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-gemini_model = None
+gemini_client = None
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 NGROK_URL = os.getenv("NGROK_URL", "https://example.ngrok-free.dev")
 
@@ -148,37 +147,57 @@ def get_audio():
 @app.post("/analyze-wellness")
 def analyze_wellness(request: WellnessAnalysisRequest):
     """Use Gemini to analyze wellness check-in responses."""
-    if not gemini_model:
+    if not gemini_client:
         return {
-            "feedback": "AI analysis is not available. Please set GEMINI_API_KEY in your .env file.",
+            "insight": "",
+            "caretaker_summary": "",
+            "observations": [],
+            "recommendations": [],
             "alert_caretaker": False,
             "alert_reason": "",
-            "mood_score": 5,
+            "error": "GEMINI_API_KEY not set",
         }
 
-    # Build the prompt
-    qa_text = "\n".join([
-        f"Q: {item['question']}\nA: {item['answer']}"
-        for item in request.questions_and_answers
-    ])
+    # Separate multiple-choice from free response
+    FREE_Q = "Is there anything else you'd like to share today?"
+    mc_items = [item for item in request.questions_and_answers if item.get("question") != FREE_Q]
+    free_response = next((item.get("answer", "") for item in request.questions_and_answers if item.get("question") == FREE_Q), "")
 
-    prompt = f"""You are a caring health assistant for elderly patients. A patient named {request.patient_name} just completed their daily wellness check-in. Analyze their responses and provide:
+    mc_text = "\n".join([f"Q: {item['question']}\nA: {item['answer']}" for item in mc_items])
 
-1. A short, warm, encouraging feedback message (2-3 sentences max) addressed directly to the patient. Be supportive and conversational.
-2. Whether the caretaker should be alerted (true/false). Alert if: the patient reports feeling unwell, pain, dizziness, missed medications, poor sleep, sadness, or any concerning symptom.
-3. If alerting, a brief reason for the alert (1 sentence).
-4. A mood score from 1-10 (1=very concerning, 10=great).
+    prompt = f"""You are an empathetic, knowledgeable health assistant for elderly patients. A patient named {request.patient_name} just completed their daily wellness check-in.
 
-Patient responses:
-{qa_text}
+Here are their multiple-choice responses:
+{mc_text}
 
-Respond ONLY with valid JSON in this exact format, no markdown:
-{{"feedback": "...", "alert_caretaker": true/false, "alert_reason": "...", "mood_score": 5}}"""
+{"The patient also shared the following in their own words:" if free_response.strip() else "The patient did not leave any additional comments."}
+{f'"{free_response}"' if free_response.strip() else ""}
+
+Provide a thorough analysis. Pay SPECIAL ATTENTION to the patient's free-text response — this is their own voice and may reveal important details about their physical or emotional state that the multiple-choice questions don't capture.
+
+Return these fields:
+
+1. **insight** (4-6 sentences): A warm, personalized health insight addressed to the patient. Reference their specific answers AND their free-text response if they wrote one. Provide relevant health advice, acknowledge their feelings, and be encouraging. Do NOT include any numerical scores.
+
+2. **caretaker_summary** (2-3 sentences): A clinical but compassionate summary for the caretaker. Be direct about any concerns. Highlight anything from the free-text response that the caretaker should know about.
+
+3. **observations** (2-4 items): Array of specific observations (e.g. "Patient mentioned knee pain when walking", "Reports difficulty sleeping", "Expressed feeling lonely").
+
+4. **recommendations** (1-3 items): Array of actionable suggestions (e.g. "Monitor hydration levels", "Schedule a follow-up about joint pain", "Consider arranging a social visit").
+
+5. **alert_caretaker** (true/false): Set to TRUE if the patient mentions or indicates ANY of: pain, dizziness, falls, missed medications, emotional distress, sadness, loneliness, confusion, breathing difficulties, appetite loss, isolation, injury, or any other health concern. When in doubt, alert the caretaker.
+
+6. **alert_reason** (1 sentence if alerting, empty string otherwise): Clear, specific reason for the alert that the caretaker can act on.
+
+Respond ONLY with valid JSON, no markdown fences:
+{{"insight": "...", "caretaker_summary": "...", "observations": ["..."], "recommendations": ["..."], "alert_caretaker": false, "alert_reason": ""}}"""
 
     try:
-        response = gemini_model.generate_content(prompt)
+        response = gemini_client.models.generate_content(
+            model='gemini-2.5-flash-lite',
+            contents=prompt,
+        )
         text = response.text.strip()
-        # Clean markdown fences if present
         if text.startswith("```"):
             text = text.split("\n", 1)[1] if "\n" in text else text[3:]
             if text.endswith("```"):
@@ -187,16 +206,21 @@ Respond ONLY with valid JSON in this exact format, no markdown:
 
         result = json.loads(text)
         return {
-            "feedback": result.get("feedback", "Thank you for completing your check-in!"),
+            "insight": result.get("insight", "Thank you for completing your check-in!"),
+            "caretaker_summary": result.get("caretaker_summary", ""),
+            "observations": result.get("observations", []),
+            "recommendations": result.get("recommendations", []),
             "alert_caretaker": result.get("alert_caretaker", False),
             "alert_reason": result.get("alert_reason", ""),
-            "mood_score": result.get("mood_score", 5),
         }
     except Exception as e:
         print(f"Gemini analysis error: {e}")
         return {
-            "feedback": "Thank you for completing your wellness check-in today! Your responses have been recorded.",
+            "insight": "",
+            "caretaker_summary": "",
+            "observations": [],
+            "recommendations": [],
             "alert_caretaker": False,
             "alert_reason": "",
-            "mood_score": 5,
+            "error": str(e),
         }

@@ -32,12 +32,7 @@ export async function analyzeWellness({ patientName, questionsAndAnswers }) {
   });
 
   if (!res.ok) {
-    return {
-      feedback: 'Thank you for completing your check-in today!',
-      alert_caretaker: false,
-      alert_reason: '',
-      mood_score: 5,
-    };
+    return null;
   }
 
   return res.json();

@@ -2,12 +2,20 @@ import { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
+import { Link } from 'react-router-dom';
 
 export default function PatientDashboard() {
   const { user } = useAuth();
-  const { medications, reminders, callHistory } = useData();
+  const { medications, reminders, callHistory, wellnessSubmissions } = useData();
 
   const patientMeds = medications[user?.id] || [];
+
+  // Find today's submission with AI feedback
+  const todayStr = new Date().toDateString();
+  const latestInsight = wellnessSubmissions.find(s => {
+    const dateToUse = s.createdAt ? new Date(s.createdAt) : new Date(s.timestamp);
+    return dateToUse.toDateString() === todayStr && s.patientId === user?.id && s.aiFeedback?.insight;
+  });
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6 animate-in">
@@ -19,6 +27,7 @@ export default function PatientDashboard() {
       </header>
 
       {user?.inviteCode && <InviteCodeCard code={user.inviteCode} />}
+      {latestInsight && <LatestWellnessInsight insight={latestInsight.aiFeedback} />}
       <TodaysReminder meds={patientMeds} />
       <QuickWellness />
       <UpcomingSchedule reminders={reminders} />
@@ -186,6 +195,55 @@ function InviteCodeCard({ code }) {
         >
           {copied ? '✓ Copied' : '📋 Copy'}
         </button>
+      </div>
+    </section>
+  );
+}
+
+function LatestWellnessInsight({ insight }) {
+  return (
+    <section className="glass rounded-2xl p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-lg">✨</span>
+        <h2 className="text-lg font-semibold text-white">Today's Wellness Insight</h2>
+      </div>
+
+      {/* AI Insight */}
+      <p className="text-sm text-white/80 leading-relaxed mb-4">{insight.insight}</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Observations */}
+        {insight.observations?.length > 0 && (
+          <div className="bg-white/5 rounded-xl p-3">
+            <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wide mb-2">📋 Observations</h3>
+            <ul className="space-y-1">
+              {insight.observations.map((obs, i) => (
+                <li key={i} className="text-xs text-white/70 flex items-start gap-1.5">
+                  <span className="text-purple-400">•</span>{obs}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {/* Recommendations */}
+        {insight.recommendations?.length > 0 && (
+          <div className="bg-white/5 rounded-xl p-3">
+            <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wide mb-2">💡 Tips</h3>
+            <ul className="space-y-1">
+              {insight.recommendations.map((rec, i) => (
+                <li key={i} className="text-xs text-white/70 flex items-start gap-1.5">
+                  <span className="text-blue-400">→</span>{rec}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 text-center">
+        <Link to="/wellness" className="text-sm text-purple-400 no-underline hover:text-purple-300">
+          View Full Check-In →
+        </Link>
       </div>
     </section>
   );

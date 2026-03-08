@@ -71,18 +71,35 @@ export default function CaretakerDashboard() {
           {wellnessSubmissions.length === 0 ? (
             <p className="text-white/30 text-sm py-4">No submissions yet. Patient wellness responses will appear here.</p>
           ) : (
-            <div className="space-y-3">
-              {wellnessSubmissions.slice(0, 3).map(sub => (
-                <div key={sub.id} className="bg-white/5 rounded-xl px-4 py-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="font-medium text-white text-sm">{sub.patientName}</p>
-                    <p className="text-xs text-white/30">{sub.timestamp}</p>
+            <div className="space-y-4">
+              {wellnessSubmissions.slice(0, 3).map(sub => {
+                const ai = sub.aiFeedback;
+                return (
+                  <div key={sub.id} className="bg-white/5 rounded-xl px-4 py-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-medium text-white text-sm">{sub.patientName}</p>
+                      <p className="text-xs text-white/30">{sub.timestamp}</p>
+                    </div>
+                    {ai?.caretaker_summary ? (
+                      <p className="text-xs text-white/60 leading-relaxed">{ai.caretaker_summary}</p>
+                    ) : (
+                      <p className="text-xs text-white/40">{Object.values(sub.answers).join(' · ')}</p>
+                    )}
+                    {ai?.alert_caretaker && (
+                      <p className="text-xs text-amber-400 font-medium mt-1.5">
+                        🔔 {ai.alert_reason}
+                      </p>
+                    )}
+                    {ai?.observations?.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {ai.observations.slice(0, 3).map((obs, i) => (
+                          <span key={i} className="text-[11px] text-white/40 bg-white/5 rounded-lg px-2 py-0.5">{obs}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-xs text-white/40">
-                    {Object.values(sub.answers).join(' · ')}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
