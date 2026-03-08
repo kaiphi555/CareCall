@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { formatPhoneNumber } from '../utils/formatters';
 
 const AuthContext = createContext(null);
 
@@ -14,12 +15,15 @@ function normalizeProfile(data) {
     id: data.id,
     role: data.role,
     name: data.name,
-    phone: data.phone,
+    phone: formatPhoneNumber(data.phone),
     email: data.email,
     age: data.age,
     avatar: data.avatar || '👤',
     inviteCode: data.invite_code,
-    emergencyContact: data.emergency_contact,
+    emergencyContact: data.emergency_contact ? {
+      ...data.emergency_contact,
+      phone: formatPhoneNumber(data.emergency_contact.phone)
+    } : null,
     reminderPreference: data.reminder_preference,
     preferredTime: data.preferred_time,
     relationship: data.relationship,
@@ -166,6 +170,42 @@ export function AuthProvider({ children }) {
     setProfile(null);
   }, []);
 
+  // Update profile in Supabase
+  const updateProfile = useCallback(async (updates) => {
+    if (!user) return;
+
+    // Filter updates to avoid sending role/id
+    const { id, role, email, avatar, ...allowedUpdates } = updates;
+    
+    // Convert camelCase to snake_case for DB if needed
+    // In our case, profiles table mostly uses snake_case: invite_code, emergency_contact, etc.
+    const dbUpdates = { ...allowedUpdates };
+    if (updates.name) dbUpdates.name = updates.name;
+    if (updates.phone) dbUpdates.phone = updates.phone;
+    if (updates.age) dbUpdates.age = parseInt(updates.age);
+    if (updates.emergencyContact) dbUpdates.emergency_contact = updates.emergencyContact;
+
+    // Optimistic update
+    setProfile(prev => ({ ...prev, ...updates }));
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update(dbUpdates)
+        .eq('id', user.id);
+      
+      if (error) throw error;
+      
+      // Refresh to ensure we have actual DB state
+      await fetchProfile(user.id);
+    } catch (err) {
+      console.error('updateProfile failed:', err);
+      // Revert partial state can be tricky, fetch is safest
+      await fetchProfile(user.id);
+      throw err;
+    }
+  }, [user, fetchProfile]);
+
   // Combined user for components
   const combinedUser = profile ? { ...profile, role: profile.role } : null;
 
@@ -185,6 +225,7 @@ export function AuthProvider({ children }) {
       login,
       signup,
       logout,
+      updateProfile,
       loading,
     }}>
       {children}

@@ -5,7 +5,7 @@ import AdherenceChart from '../../components/AdherenceChart';
 import { Link } from 'react-router-dom';
 
 export default function CaretakerDashboard() {
-  const { patients, alertsList, wellnessSubmissions } = useData();
+  const { patients, alertsList, wellnessSubmissions, calls } = useData();
   const { user } = useAuth();
 
   const totalPatients = patients.length;
@@ -50,7 +50,7 @@ export default function CaretakerDashboard() {
                   <span className="text-2xl">{p.avatar}</span>
                   <div>
                     <p className="font-medium text-white">{p.name}</p>
-                    <p className="text-sm text-white/40">Adherence: {p.adherencePercent || 0}%</p>
+                    <p className="text-sm text-white/40">7-Day Adherence: {p.adherencePercent || 0}%</p>
                   </div>
                 </div>
                 <StatusBadge status={p.riskLevel} size="sm" />
@@ -58,7 +58,10 @@ export default function CaretakerDashboard() {
             ))}
           </div>
         </div>
-        <AdherenceChart />
+        <div className="flex flex-col gap-6">
+          <DailyMedsPanel patients={patients} calls={calls} />
+          <AdherenceChart />
+        </div>
       </div>
 
       {/* Recent wellness submissions + alerts */}
@@ -144,6 +147,45 @@ export default function CaretakerDashboard() {
           <p className="font-semibold text-white group-hover:text-purple-300 transition-colors">Patient Hub</p>
           <p className="text-xs text-white/30 mt-1">All patients</p>
         </Link>
+      </div>
+    </div>
+  );
+}
+
+function DailyMedsPanel({ patients, calls }) {
+  const todayStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+  
+  return (
+    <div className="glass rounded-2xl p-6">
+      <h3 className="text-lg font-semibold text-white mb-4">Today's Medication Status</h3>
+      <div className="space-y-4">
+        {patients.length === 0 ? (
+          <p className="text-white/30 text-sm">No patients linked yet.</p>
+        ) : (
+          patients.map(p => {
+            const todayCalls = calls.filter(c => c.patientId === p.id && c.date === todayStr);
+            const taken = todayCalls.filter(c => c.adherenceStatus === 'taken').length;
+            const total = todayCalls.length;
+            const percent = total > 0 ? (taken / total) * 100 : 0;
+
+            return (
+              <div key={p.id} className="space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="font-medium text-white">{p.name}</span>
+                  <span className="text-white/50">{taken}/{total} doses taken</span>
+                </div>
+                <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-500 rounded-full ${
+                      percent === 100 ? 'bg-emerald-500' : percent > 0 ? 'bg-purple-500' : 'bg-white/10'
+                    }`}
+                    style={{ width: `${percent || 0}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

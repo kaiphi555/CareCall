@@ -9,7 +9,7 @@ export async function triggerCall({ patientName, medication, phoneNumber }) {
     body: JSON.stringify({
       patient_name: patientName,
       medication: medication,
-      phone_number: phoneNumber,
+      phone_number: phoneNumber.toString().replace(/\D/g, ''),
     }),
   });
 

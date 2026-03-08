@@ -1,14 +1,51 @@
+import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { formatPhoneNumber } from '../../utils/formatters';
 
 export default function ProfilePage() {
-  const { user, logout } = useAuth();
+  const { user, updateProfile } = useAuth();
   const { patients } = useData();
   const profile = user;
+  
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    age: user?.age || '',
+    emergencyContact: user?.emergencyContact || { name: '', phone: '', relationship: '' }
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateProfile(formData);
+      setIsEditing(false);
+    } catch (err) {
+      alert('Failed to update profile: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 animate-in">
-      <h1 className="text-3xl font-bold text-white mb-8">👤 Profile</h1>
+      <header className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold text-white">👤 Profile</h1>
+        <button
+          onClick={() => isEditing ? handleSave() : setIsEditing(true)}
+          disabled={saving}
+          className={`px-6 py-2 rounded-xl font-semibold transition-all ${
+            isEditing 
+              ? 'bg-emerald-600 hover:bg-emerald-500 text-white' 
+              : 'bg-white/10 hover:bg-white/20 text-white'
+          }`}
+        >
+          {saving ? 'Saving...' : isEditing ? 'Save Changes' : 'Edit Profile'}
+        </button>
+      </header>
 
       <div className="glass rounded-2xl p-6 sm:p-8">
         <div className="flex items-center gap-4 mb-6">
@@ -28,19 +65,39 @@ export default function ProfilePage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <InfoItem label="Email" value={profile.email} />
-          <InfoItem label="Phone" value={profile.phone} />
+          <EditableInfoItem 
+            label="Name" 
+            value={formData.name} 
+            isEditing={isEditing} 
+            onChange={val => setFormData(prev => ({ ...prev, name: val }))} 
+          />
+          <EditableInfoItem 
+            label="Email" 
+            value={formData.email} 
+            isEditing={isEditing} 
+            onChange={val => setFormData(prev => ({ ...prev, email: val }))} 
+            type="email"
+          />
+          <EditableInfoItem 
+            label="Phone" 
+            value={isEditing ? formData.phone : formatPhoneNumber(formData.phone)} 
+            isEditing={isEditing} 
+            onChange={val => setFormData(prev => ({ ...prev, phone: val }))} 
+          />
           {user?.role === 'patient' && (
-            <>
-              <InfoItem label="Age" value={profile.age} />
-              <InfoItem label="Reminder Time" value={profile.preferredTime} />
-            </>
+            <EditableInfoItem 
+              label="Age" 
+              value={formData.age} 
+              isEditing={isEditing} 
+              onChange={val => setFormData(prev => ({ ...prev, age: val }))} 
+              type="number"
+            />
           )}
           {user?.role === 'caretaker' && (
-            <>
-              <InfoItem label="Relationship" value={profile.relationship} />
-              <InfoItem label="Patients" value={`${patients.length} linked`} />
-            </>
+            <div className="bg-white/5 rounded-xl px-4 py-3 opacity-60">
+              <p className="text-xs text-white/40 font-medium">Patients</p>
+              <p className="text-white font-semibold">{patients.length} linked</p>
+            </div>
           )}
         </div>
 
@@ -49,22 +106,73 @@ export default function ProfilePage() {
             <hr className="border-white/5 my-6" />
             <h3 className="text-lg font-semibold text-white mb-3">🚨 Emergency Contact</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InfoItem label="Name" value={profile.emergencyContact.name} />
-              <InfoItem label="Phone" value={profile.emergencyContact.phone} />
-              <InfoItem label="Relationship" value={profile.emergencyContact.relationship} />
+              <EditableInfoItem 
+                label="Emergency Name" 
+                value={formData.emergencyContact.name} 
+                isEditing={isEditing} 
+                onChange={val => setFormData(prev => ({ 
+                  ...prev, 
+                  emergencyContact: { ...prev.emergencyContact, name: val } 
+                }))} 
+              />
+              <EditableInfoItem 
+                label="Emergency Phone" 
+                value={isEditing ? formData.emergencyContact.phone : formatPhoneNumber(formData.emergencyContact.phone)} 
+                isEditing={isEditing} 
+                onChange={val => setFormData(prev => ({ 
+                  ...prev, 
+                  emergencyContact: { ...prev.emergencyContact, phone: val } 
+                }))} 
+              />
+              <EditableInfoItem 
+                label="Relationship" 
+                value={formData.emergencyContact.relationship} 
+                isEditing={isEditing} 
+                onChange={val => setFormData(prev => ({ 
+                  ...prev, 
+                  emergencyContact: { ...prev.emergencyContact, relationship: val } 
+                }))} 
+              />
             </div>
           </>
+        )}
+
+        {isEditing && (
+          <button 
+            onClick={() => {
+              setIsEditing(false);
+              setFormData({
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                age: user.age,
+                emergencyContact: user.emergencyContact
+              });
+            }}
+            className="mt-6 text-sm text-white/40 hover:text-white transition-colors"
+          >
+            Cancel and discard changes
+          </button>
         )}
       </div>
     </div>
   );
 }
 
-function InfoItem({ label, value }) {
+function EditableInfoItem({ label, value, isEditing, onChange, type = 'text' }) {
   return (
     <div className="bg-white/5 rounded-xl px-4 py-3">
-      <p className="text-xs text-white/40 font-medium">{label}</p>
-      <p className="text-white font-semibold">{value}</p>
+      <p className="text-xs text-white/40 font-medium mb-1">{label}</p>
+      {isEditing ? (
+        <input 
+          type={type}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-full bg-transparent text-white font-semibold outline-none border-b border-purple-500/30 focus:border-purple-500 transition-all py-0.5"
+        />
+      ) : (
+        <p className="text-white font-semibold">{value}</p>
+      )}
     </div>
   );
 }

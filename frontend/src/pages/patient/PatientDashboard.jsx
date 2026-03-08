@@ -3,12 +3,26 @@ import { useData } from '../../context/DataContext';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
+import { formatPhoneNumber } from '../../utils/formatters';
 
 export default function PatientDashboard() {
   const { user } = useAuth();
-  const { medications, reminders, callHistory, wellnessSubmissions } = useData();
+  const { medications, reminders, callHistory, wellnessSubmissions, calls } = useData();
 
-  const patientMeds = medications[user?.id] || [];
+  // Cross-reference medications with today's scheduled calls to get real adherence status
+  const patientMeds = (medications[user?.id] || []).map(med => {
+    let status = med.status;
+    // Format local date securely (ignoring timezone drift)
+    const todayStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+    const todayCall = calls?.find(c => c.medicationId === med.id && c.date === todayStr);
+
+    if (todayCall && todayCall.adherenceStatus) {
+      if (todayCall.adherenceStatus === 'taken') status = 'taken';
+      else if (todayCall.adherenceStatus === 'missed') status = 'missed';
+      else status = 'upcoming'; // pending implies upcoming
+    }
+    return { ...med, status };
+  });
 
   // Find today's submission with AI feedback
   const todayStr = new Date().toDateString();
@@ -28,18 +42,26 @@ export default function PatientDashboard() {
 
       {user?.inviteCode && <InviteCodeCard code={user.inviteCode} />}
       {latestInsight && <LatestWellnessInsight insight={latestInsight.aiFeedback} />}
-      <TodaysReminder meds={patientMeds} />
+      <TodaysReminder meds={patientMeds} calls={calls} />
       <QuickWellness />
-      <UpcomingSchedule reminders={reminders} />
-      <CallHistorySection callHistory={callHistory} userId={user?.id} />
       <EmergencyContactCard user={user} />
     </div>
   );
 }
 
-function TodaysReminder({ meds }) {
+function TodaysReminder({ meds, calls }) {
+  const { updateAdherence } = useData();
   const nextMed = meds.find(m => m.status === 'upcoming') || meds[0];
   const takenCount = meds.filter(m => m.status === 'taken').length;
+
+  const handleUpdate = (medId, status) => {
+    // Find today's call for this medication
+    const todayStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+    const todayCall = calls?.find(c => c.medicationId === medId && c.date === todayStr);
+    if (todayCall) {
+      updateAdherence(todayCall.id, status);
+    }
+  };
 
   if (!nextMed) {
     return (
@@ -58,8 +80,9 @@ function TodaysReminder({ meds }) {
           <div>
             <p className="text-sm text-white/40 font-medium">Next Medication</p>
             <p className="text-2xl font-bold text-white mt-1">{nextMed.name}</p>
+            {nextMed.dosage && <p className="text-sm text-purple-300 font-medium">{nextMed.dosage}</p>}
             <p className="text-lg text-purple-400 font-semibold">{nextMed.time}</p>
-            <p className="text-sm text-white/40 mt-1">{nextMed.instructions}</p>
+            {nextMed.instructions && <p className="text-sm text-white/40 mt-1">{nextMed.instructions}</p>}
           </div>
           <StatusBadge status={nextMed.status} size="lg" />
         </div>
@@ -70,9 +93,35 @@ function TodaysReminder({ meds }) {
           <div key={med.id} className="flex items-center justify-between bg-white/5 rounded-xl px-4 py-3">
             <div>
               <p className="font-medium text-white">{med.name}</p>
-              <p className="text-sm text-white/40">{med.time}</p>
+              <p className="text-sm text-white/40">{med.dosage ? `${med.dosage} · ${med.time}` : med.time}</p>
+              <div className="flex gap-2 mt-2">
+                <button 
+                  onClick={() => handleUpdate(med.id, 'taken')}
+                  className={`px-3 py-1 text-[10px] font-semibold rounded-lg transition-all ${
+                    med.status === 'taken' 
+                      ? 'bg-green-600 text-white shadow-lg shadow-green-500/20' 
+                      : 'bg-green-600/10 hover:bg-green-600/20 text-green-400 border border-green-500/20'
+                  }`}
+                >
+                  Mark as Taken
+                </button>
+                <button 
+                  onClick={() => handleUpdate(med.id, 'missed')}
+                  className={`px-3 py-1 text-[10px] font-semibold rounded-lg transition-all ${
+                    med.status === 'missed' 
+                      ? 'bg-red-600 text-white shadow-lg shadow-red-500/20' 
+                      : 'bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/20'
+                  }`}
+                >
+                  Not Taken
+                </button>
+              </div>
             </div>
-            <StatusBadge status={med.status} size="sm" />
+            <div className="flex flex-col items-end gap-2 text-right">
+              <StatusBadge status={med.status} size="sm" />
+              {med.status === 'taken' && <span className="text-[10px] text-emerald-400 font-medium italic">Confirmed Taken</span>}
+              {med.status === 'missed' && <span className="text-[10px] text-red-400 font-medium italic">Marked "Not Taken"</span>}
+            </div>
           </div>
         ))}
       </div>
@@ -162,7 +211,7 @@ function EmergencyContactCard({ user }) {
           <p className="text-lg font-bold text-white">{emergencyContact.name}</p>
           <p className="text-white/40">{emergencyContact.relationship}</p>
           <a href={`tel:${emergencyContact.phone}`} className="text-lg font-semibold text-red-400 no-underline hover:text-red-300">
-            📞 {emergencyContact.phone}
+            📞 {formatPhoneNumber(emergencyContact.phone)}
           </a>
         </div>
       </div>

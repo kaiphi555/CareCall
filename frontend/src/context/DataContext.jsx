@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { formatPhoneNumber } from '../utils/formatters';
 
 const DataContext = createContext(null);
 
@@ -9,10 +10,13 @@ function normalizePatient(p) {
     id: p.id,
     name: p.name,
     age: p.age,
-    phone: p.phone,
+    phone: formatPhoneNumber(p.phone),
     email: p.email,
     role: p.role,
-    emergencyContact: p.emergency_contact,
+    emergencyContact: p.emergency_contact ? {
+      ...p.emergency_contact,
+      phone: formatPhoneNumber(p.emergency_contact.phone)
+    } : null,
     reminderPreference: p.reminder_preference,
     preferredTime: p.preferred_time,
     adherencePercent: p.adherence_percent ?? 100,
@@ -54,16 +58,16 @@ export function DataProvider({ children }) {
 
   async function loadAllData() {
     try {
-      // Load patients depending on role
+      // Determine allowed patient IDs
+      let patientIds = [];
       if (user.role === 'caretaker') {
-        // Load only linked patients via caretaker_patients table
         const { data: links } = await supabase
           .from('caretaker_patients')
           .select('patient_id')
           .eq('caretaker_id', user.id);
-
+        
         if (links && links.length > 0) {
-          const patientIds = links.map(l => l.patient_id);
+          patientIds = links.map(l => l.patient_id);
           const { data: dbPatients } = await supabase
             .from('profiles')
             .select('*')
@@ -73,14 +77,24 @@ export function DataProvider({ children }) {
           setPatients([]);
         }
       } else {
-        // Patient role — just load self
-        setPatients([]);
+        patientIds = [user.id];
+        setPatients([]); // Patients don't see a "patient list"
       }
 
-      // Load medications
+      if (patientIds.length === 0) {
+        setMedications({});
+        setCallHistory([]);
+        setWellnessSubmissions([]);
+        setAlertsList([]);
+        setCalls([]);
+        return;
+      }
+
+      // Load medications for allowed patients
       const { data: dbMeds } = await supabase
         .from('medications')
         .select('*')
+        .in('patient_id', patientIds)
         .order('created_at');
       if (dbMeds) {
         const grouped = {};
@@ -89,6 +103,7 @@ export function DataProvider({ children }) {
           grouped[m.patient_id].push({
             id: m.id,
             name: m.name,
+            dosage: m.dosage || '',
             time: m.time,
             status: m.status,
             instructions: m.instructions,
@@ -97,10 +112,11 @@ export function DataProvider({ children }) {
         setMedications(grouped);
       }
 
-      // Load call history
+      // Load call history for allowed patients
       const { data: dbCalls } = await supabase
         .from('call_history')
         .select('*')
+        .in('patient_id', patientIds)
         .order('call_date', { ascending: false });
       if (dbCalls) {
         setCallHistory(dbCalls.map(c => ({
@@ -114,23 +130,11 @@ export function DataProvider({ children }) {
         })));
       }
 
-      // Load wellness questions
-      const { data: dbQuestions } = await supabase
-        .from('wellness_questions')
-        .select('*')
-        .order('created_at');
-      if (dbQuestions) {
-        setWellnessQuestions(dbQuestions.map(q => ({
-          id: q.id,
-          question: q.question,
-          options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
-        })));
-      }
-
-      // Load alerts
+      // Load alerts for allowed patients
       const { data: dbAlerts } = await supabase
         .from('alerts')
         .select('*')
+        .in('patient_id', patientIds)
         .order('created_at', { ascending: false });
       if (dbAlerts) {
         setAlertsList(dbAlerts.map(a => ({
@@ -143,27 +147,32 @@ export function DataProvider({ children }) {
         })));
       }
 
-      // Load scheduled calls
+      // Load scheduled calls for allowed patients
       const { data: dbScheduled } = await supabase
         .from('scheduled_calls')
         .select('*')
-        .order('created_at', { ascending: false });
-      if (dbScheduled) {
-        setCalls(dbScheduled.map(c => ({
-          id: c.id,
-          patientId: c.patient_id,
-          patientName: c.patient_name,
-          date: c.date,
-          time: c.time,
-          purpose: c.purpose,
-          status: c.status,
-        })));
-      }
+        .in('patient_id', patientIds)
+        .order('date', { ascending: false });
+      
+      const mappedCalls = dbScheduled ? dbScheduled.map(c => ({
+        id: c.id,
+        patientId: c.patient_id,
+        patientName: c.patient_name,
+        date: c.date,
+        time: c.time,
+        purpose: c.purpose,
+        status: c.status,
+        medicationId: c.medication_id,
+        adherenceStatus: c.adherence_status || 'pending',
+        takenAt: c.taken_at
+      })) : [];
+      setCalls(mappedCalls);
 
-      // Load wellness submissions
+      // Load wellness submissions for allowed patients
       const { data: dbSubs } = await supabase
         .from('wellness_submissions')
         .select('*')
+        .in('patient_id', patientIds)
         .order('created_at', { ascending: false });
       if (dbSubs) {
         setWellnessSubmissions(dbSubs.map(s => ({
@@ -176,6 +185,42 @@ export function DataProvider({ children }) {
           createdAt: s.created_at,
         })));
       }
+
+      // Load wellness questions (global)
+      const { data: dbQuestions } = await supabase
+        .from('wellness_questions')
+        .select('*')
+        .order('created_at');
+      if (dbQuestions) {
+        setWellnessQuestions(dbQuestions.map(q => ({
+          id: q.id,
+          question: q.question,
+          options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
+        })));
+      }
+
+      // --- Calculate 7-day Adherence Score ---
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+
+      setPatients(prev => prev.map(patient => {
+        const patientCalls = mappedCalls.filter(c => 
+          c.patientId === patient.id && 
+          c.date >= sevenDaysAgoStr && 
+          c.date <= new Date().toISOString().split('T')[0]
+        );
+
+        const totalAssigned = patientCalls.length;
+        const taken = patientCalls.filter(c => c.adherenceStatus === 'taken').length;
+        
+        const adherencePercent = totalAssigned > 0 
+          ? Math.round((taken / totalAssigned) * 100) 
+          : 100;
+
+        return { ...patient, adherencePercent };
+      }));
+
     } catch (err) {
       console.warn('Supabase data load failed:', err);
     }
@@ -329,10 +374,125 @@ export function DataProvider({ children }) {
     try { await supabase.from('scheduled_calls').delete().eq('id', callId); } catch (_) {}
   }, []);
 
+  // Add medication (with recurring scheduled calls)
+  const addMedication = useCallback(async (patientId, patientName, name, dosage, times) => {
+    // times is an array of time strings like ["08:00", "14:00", "20:00"]
+    const localId = 'med_' + Date.now();
+    const newMed = { id: localId, name, dosage, time: times.join(', '), status: 'upcoming', instructions: '' };
+    setMedications(prev => {
+      const copy = { ...prev };
+      if (!copy[patientId]) copy[patientId] = [];
+      copy[patientId] = [...copy[patientId], newMed];
+      return copy;
+    });
+
+    try {
+      // Insert medication
+      const { data: medData, error: medError } = await supabase.from('medications').insert({
+        patient_id: patientId,
+        name,
+        dosage,
+        time: times.join(', '),
+        status: 'upcoming',
+      }).select().single();
+
+      if (medError) {
+        console.error('Supabase error inserting medication:', medError);
+        throw medError;
+      }
+
+      const medId = medData?.id || localId;
+      if (medData) {
+        setMedications(prev => {
+          const copy = { ...prev };
+          copy[patientId] = (copy[patientId] || []).map(m => m.id === localId ? { ...m, id: medId } : m);
+          return copy;
+        });
+      }
+
+      // Schedule a recurring call for each dose time
+      const today = new Date().toISOString().split('T')[0];
+      const newCalls = [];
+
+      for (const t of times) {
+        const { data: callData, error: callError } = await supabase.from('scheduled_calls').insert({
+          patient_id: patientId,
+          patient_name: patientName,
+          date: today,
+          time: t,
+          purpose: `Take ${dosage} of ${name}`,
+          status: 'scheduled',
+          medication_id: medId,
+          recurring: true,
+        }).select().single();
+        
+        if (callError) {
+          console.error('Supabase error inserting scheduled call:', callError);
+        }
+        if (callData) {
+          newCalls.push({
+            id: callData.id,
+            patientId: callData.patient_id,
+            patientName: callData.patient_name,
+            date: callData.date,
+            time: callData.time,
+            purpose: callData.purpose,
+            status: callData.status,
+            medicationId: callData.medication_id,
+            adherenceStatus: 'pending'
+          });
+        }
+      }
+
+      if (newCalls.length > 0) {
+        setCalls(prev => [...prev, ...newCalls]);
+      }
+    } catch (err) {
+      console.error('Failed to add medication:', err);
+    }
+  }, []);
+
+  // Remove medication (cascading deletes scheduled calls via FK)
+  const removeMedication = useCallback(async (patientId, medId) => {
+    setMedications(prev => {
+      const copy = { ...prev };
+      copy[patientId] = (copy[patientId] || []).filter(m => m.id !== medId);
+      return copy;
+    });
+    try {
+      await supabase.from('medications').delete().eq('id', medId);
+    } catch (_) {}
+  }, []);
+
+  // Update medication adherence (Manual button)
+  const updateAdherence = useCallback(async (callId, status) => {
+    const timestamp = new Date().toISOString();
+    
+    // Optimistic update
+    setCalls(prev => prev.map(c => 
+      c.id === callId ? { ...c, adherenceStatus: status, takenAt: status === 'taken' ? timestamp : null } : c
+    ));
+
+    try {
+      await supabase
+        .from('scheduled_calls')
+        .update({ 
+          adherence_status: status,
+          taken_at: status === 'taken' ? timestamp : null
+        })
+        .eq('id', callId);
+    } catch (err) {
+      console.error('Failed to update medication adherence:', err);
+      // Revert if error
+      loadAllData();
+    }
+  }, []);
+
   return (
     <DataContext.Provider value={{
       patients,
-      medications,
+      medications, addMedication, removeMedication,
+      updateAdherence,
       callHistory,
       reminders,
       adherenceData,

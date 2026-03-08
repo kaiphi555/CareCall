@@ -22,6 +22,7 @@ import AlertsPage from './pages/caretaker/AlertsPage';
 import CaretakerProfilePage from './pages/caretaker/CaretakerProfilePage';
 import ScheduleCallPage from './pages/caretaker/ScheduleCallPage';
 import WellnessConfigPage from './pages/caretaker/WellnessConfigPage';
+import MedicationsPage from './pages/caretaker/MedicationsPage';
 
 function AppRoutes() {
   const { user } = useAuth();
@@ -58,6 +59,7 @@ function AppRoutes() {
               <Route path="/profile" element={<CaretakerProfilePage />} />
               <Route path="/schedule-call" element={<ScheduleCallPage />} />
               <Route path="/wellness-config" element={<WellnessConfigPage />} />
+              <Route path="/medications" element={<MedicationsPage />} />
             </>
           )}
 

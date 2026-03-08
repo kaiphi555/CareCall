@@ -172,6 +172,15 @@ export default function ScheduleCallPage() {
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${status.classes}`}>
                     {status.text}
                   </span>
+                  {call.adherenceStatus && call.adherenceStatus !== 'pending' && (
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                      call.adherenceStatus === 'taken' 
+                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' 
+                        : 'bg-red-500/15 text-red-400 border-red-500/20'
+                    }`}>
+                      {call.adherenceStatus === 'taken' ? '✅ Taken' : '❌ Missed'}
+                    </span>
+                  )}
                   <button
                     onClick={() => handleCallNow(call)}
                     disabled={callStatus[call.id] === 'calling'}

@@ -1,8 +1,8 @@
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -37,7 +37,7 @@ gemini_client = None
 if GEMINI_API_KEY:
     gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
-NGROK_URL = os.getenv("NGROK_URL", "https://example.ngrok-free.dev")
+NGROK_URL = os.getenv("NGROK_URL", "https://example.ngrok-free.dev") # Reload trigger
 
 # ---------- Models ----------
 
@@ -52,8 +52,11 @@ class WellnessAnalysisRequest(BaseModel):
 
 # ---------- Call Logic ----------
 
-def make_call(patient_name: str, medication: str, phone_number: str):
-    script = f"Hello {patient_name}. This is your CareCall reminder. It is time to take your {medication}. Please take it now."
+def make_call(patient_name: str, medication: str, phone_number: str, dosage: str = ""):
+    if dosage:
+        script = f"Hello {patient_name}. This is your CareCall reminder. It is time to take your {dosage} of {medication}. Please take it now."
+    else:
+        script = f"Hello {patient_name}. This is your CareCall reminder. It is time to take your {medication}. Please take it now."
 
     if USE_ELEVENLABS:
         audio_generator = eleven_client.text_to_speech.convert(
@@ -69,7 +72,9 @@ def make_call(patient_name: str, medication: str, phone_number: str):
         twiml = f'<Response><Say voice="Polly.Joanna" language="en-US">{script}</Say></Response>'
 
     call = twilio_client.calls.create(
-        to=phone_number, from_=os.getenv("TWILIO_PHONE_NUMBER"), twiml=twiml
+        to=phone_number, from_=os.getenv("TWILIO_PHONE_NUMBER"), twiml=twiml,
+        status_callback=f"{NGROK_URL}/call-status",
+        status_callback_method='POST'
     )
     return call.sid
 
@@ -101,18 +106,37 @@ def check_scheduled_calls():
                     sb.table("scheduled_calls").update({"status": "failed"}).eq("id", call["id"]).execute()
                     continue
 
+                # Look up medication name + dosage via medication_id if available
                 med_name = "your medication"
-                med_result = sb.table("medications").select("name").eq("patient_id", call.get("patient_id", "")).limit(1).execute()
-                if med_result.data: med_name = med_result.data[0]["name"]
+                med_dosage = ""
+                med_id = call.get("medication_id")
+                if med_id:
+                    med_result = sb.table("medications").select("name, dosage").eq("id", med_id).limit(1).execute()
+                    if med_result.data:
+                        med_name = med_result.data[0].get("name", "your medication")
+                        med_dosage = med_result.data[0].get("dosage", "")
+                else:
+                    med_result = sb.table("medications").select("name, dosage").eq("patient_id", call.get("patient_id", "")).limit(1).execute()
+                    if med_result.data:
+                        med_name = med_result.data[0].get("name", "your medication")
+                        med_dosage = med_result.data[0].get("dosage", "")
 
                 try:
-                    print(f"📞 Triggering scheduled call to {patient_name} at {phone}")
-                    call_sid = make_call(patient_name, med_name, phone)
-                    sb.table("scheduled_calls").update({"status": "completed"}).eq("id", call["id"]).execute()
+                    print(f"📞 Triggering scheduled call to {patient_name} at {phone} for {med_dosage} of {med_name}")
+                    call_sid = make_call(patient_name, med_name, phone, med_dosage)
                     print(f"✅ Call triggered: {call_sid}")
+
+                    # Update status to calling and save twilio_sid. The webhook will handle completion and recurrence.
+                    sb.table("scheduled_calls").update({
+                        "status": "calling",
+                        "twilio_sid": call_sid
+                    }).eq("id", call["id"]).execute()
                 except Exception as e:
                     print(f"❌ Call failed: {e}")
-                    sb.table("scheduled_calls").update({"status": "failed"}).eq("id", call["id"]).execute()
+                    sb.table("scheduled_calls").update({
+                        "status": "failed", 
+                        "adherence_status": "missed"
+                    }).eq("id", call["id"]).execute()
     except Exception as e:
         print(f"Scheduler error: {e}")
 
@@ -143,6 +167,67 @@ def trigger_medication_call(request: CallRequest):
 @app.get("/audio")
 def get_audio():
     return FileResponse("static/reminder.mp3", media_type="audio/mpeg")
+
+from urllib.parse import parse_qs
+
+@app.post("/call-status")
+async def twilio_call_status(request: Request):
+    if not sb: return {"status": "error", "message": "Supabase not configured"}
+    
+    body = await request.body()
+    parsed = parse_qs(body.decode('utf-8'))
+    call_sid = parsed.get("CallSid", [None])[0]
+    call_status = parsed.get("CallStatus", [None])[0]
+    
+    print(f"📥 Received Twilio callback for {call_sid}: {call_status}")
+    if not call_sid: return {"status": "ignored"}
+    
+    # Find the scheduled call
+    call_res = sb.table("scheduled_calls").select("*").eq("twilio_sid", call_sid).execute()
+    if not call_res.data:
+        print("   -> No matching scheduled_call found for this SID.")
+        return {"status": "not_found"}
+        
+    call = call_res.data[0]
+    
+    if call["status"] in ["completed", "failed", "no-answer", "busy", "canceled"]:
+        return {"status": "already_processed"}
+
+    # Updated adherence logic for button-based tracking:
+    # We log the call outcome, but only button clicks mark it as 'taken'.
+    # If the call was missed/busy/failed, we mark it as 'missed'.
+    # If it was completed (answered), we leave adherence as 'pending' (waiting for button).
+    
+    adherence = "missed" if call_status in ["no-answer", "busy", "failed", "canceled"] else "pending"
+    
+    # Update call record
+    final_status = call_status if call_status != "in-progress" else "completed"
+    
+    sb.table("scheduled_calls").update({
+        "status": final_status,
+        "adherence_status": adherence
+    }).eq("id", call["id"]).execute()
+    print(f"   -> Updated call {call['id']} status to {final_status}, adherence: {adherence}")
+    
+    # Automatically schedule tomorrow's call if recurring
+    if call.get("recurring"):
+        next_date = (datetime.strptime(call.get("date"), "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+        
+        # We spawn a NEW row for tomorrow, so we keep historical records intact
+        sb.table("scheduled_calls").insert({
+            "patient_id": call.get("patient_id"),
+            "patient_name": call.get("patient_name"),
+            "date": next_date,
+            "time": call.get("time"),
+            "purpose": call.get("purpose"),
+            "status": "scheduled",
+            "medication_id": call.get("medication_id"),
+            "recurring": True,
+            "adherence_status": "pending"
+        }).execute()
+        print(f"   -> 🔁 Spawned new recurring call for {next_date}")
+        
+    return {"status": "success"}
 
 @app.post("/analyze-wellness")
 def analyze_wellness(request: WellnessAnalysisRequest):

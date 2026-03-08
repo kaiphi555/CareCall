@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext';
 
 const patientLinks = [
   { to: '/dashboard', label: 'Dashboard', icon: '🏠' },
-  { to: '/reminders', label: 'Reminders', icon: '💊' },
   { to: '/wellness', label: 'Wellness', icon: '❤️' },
   { to: '/profile', label: 'Profile', icon: '👤' },
 ];
@@ -11,6 +10,7 @@ const patientLinks = [
 const caretakerLinks = [
   { to: '/dashboard', label: 'Dashboard', icon: '📊' },
   { to: '/patients', label: 'Patients', icon: '👥' },
+  { to: '/medications', label: 'Meds', icon: '💊' },
   { to: '/schedule-call', label: 'Schedule', icon: '📞' },
   { to: '/wellness-config', label: 'Wellness', icon: '❤️' },
   { to: '/call-logs', label: 'Calls', icon: '📋' },
