@@ -7,7 +7,7 @@ export default function PatientDashboard() {
   const { user } = useAuth();
   const { medications, reminders, callHistory } = useData();
 
-  const patientMeds = medications[user?.id] || medications['p1'] || [];
+  const patientMeds = medications[user?.id] || [];
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6 animate-in">
@@ -18,6 +18,7 @@ export default function PatientDashboard() {
         <p className="text-lg text-white/50 mt-1">Here's your health summary for today.</p>
       </header>
 
+      {user?.inviteCode && <InviteCodeCard code={user.inviteCode} />}
       <TodaysReminder meds={patientMeds} />
       <QuickWellness />
       <UpcomingSchedule reminders={reminders} />
@@ -155,6 +156,36 @@ function EmergencyContactCard({ user }) {
             📞 {emergencyContact.phone}
           </a>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function InviteCodeCard({ code }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <section className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-2xl p-6 border border-purple-500/15">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wide mb-1">Your Invite Code</h2>
+          <p className="text-3xl font-bold text-white font-mono tracking-[0.3em]">{code}</p>
+          <p className="text-sm text-white/40 mt-1">Share this code with your caretaker to link accounts</p>
+        </div>
+        <button
+          onClick={handleCopy}
+          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+            copied ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 hover:bg-white/15 text-white/60 hover:text-white'
+          }`}
+        >
+          {copied ? '✓ Copied' : '📋 Copy'}
+        </button>
       </div>
     </section>
   );

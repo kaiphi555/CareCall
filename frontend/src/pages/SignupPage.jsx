@@ -13,7 +13,6 @@ export default function SignupPage() {
     name: '', age: '', phone: '', email: '', password: '',
     emergencyName: '', emergencyPhone: '',
     reminderType: 'Phone Call', preferredTime: '09:00',
-    relationship: '', patientCode: '',
   });
 
   const update = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
@@ -131,14 +130,9 @@ export default function SignupPage() {
                   </div>
                   <InputField label="Preferred Time" type="time" value={form.preferredTime} onChange={v => update('preferredTime', v)} />
                 </div>
-              </>
-            )}
-
-            {role === 'caretaker' && (
-              <>
-                <p className="text-sm font-semibold text-white/60">Connect to Patient</p>
-                <InputField label="Relationship to Patient" value={form.relationship} onChange={v => update('relationship', v)} placeholder="Son, Daughter, Nurse, etc." />
-                <InputField label="Patient Name or Invite Code" value={form.patientCode} onChange={v => update('patientCode', v)} placeholder="Enter patient name or code" />
+                <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 mt-2">
+                  <p className="text-sm text-purple-300 font-medium">📋 After signing up, you'll receive a unique <strong>8-digit code</strong> to share with your caretaker so they can link to your account.</p>
+                </div>
               </>
             )}
 

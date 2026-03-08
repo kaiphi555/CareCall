@@ -179,18 +179,18 @@ export function DataProvider({ children }) {
     }
   }
 
-  // Add patient by email (caretaker links to patient)
-  const addPatientByEmail = useCallback(async (email) => {
-    // Find patient profile by email
+  // Add patient by invite code (caretaker links to patient)
+  const addPatientByCode = useCallback(async (code) => {
+    // Find patient profile by invite code
     const { data: found, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('email', email)
+      .eq('invite_code', code)
       .eq('role', 'patient')
       .single();
 
     if (error || !found) {
-      throw new Error('No patient found with that email. Make sure they have a CareCall patient account.');
+      throw new Error('No patient found with that code. Please check the 8-digit code and try again.');
     }
 
     // Check if already linked
@@ -328,7 +328,7 @@ export function DataProvider({ children }) {
       wellnessSubmissions, submitWellness,
       alertsList,
       calls, scheduleCall, cancelCall,
-      addPatientByEmail, removePatient,
+      addPatientByCode, removePatient,
     }}>
       {children}
     </DataContext.Provider>

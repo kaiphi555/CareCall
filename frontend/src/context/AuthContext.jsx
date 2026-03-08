@@ -4,6 +4,10 @@ import { supabase } from '../lib/supabase';
 const AuthContext = createContext(null);
 
 // Normalize a raw Supabase profile row to camelCase for components
+function generateInviteCode() {
+  return String(Math.floor(10000000 + Math.random() * 90000000));
+}
+
 function normalizeProfile(data) {
   if (!data) return null;
   return {
@@ -14,6 +18,7 @@ function normalizeProfile(data) {
     email: data.email,
     age: data.age,
     avatar: data.avatar || '👤',
+    inviteCode: data.invite_code,
     emergencyContact: data.emergency_contact,
     reminderPreference: data.reminder_preference,
     preferredTime: data.preferred_time,
@@ -116,10 +121,14 @@ export function AuthProvider({ children }) {
       avatar: role === 'patient' ? '👴' : '🩺',
       reminder_preference: formData.reminderType || 'Phone Call',
       preferred_time: formData.preferredTime || '09:00 AM',
-      relationship: formData.relationship || null,
       adherence_percent: 100,
       risk_level: 'Low',
     };
+
+    // Generate unique 8-digit invite code for patients
+    if (role === 'patient') {
+      profileData.invite_code = generateInviteCode();
+    }
 
     if (role === 'patient' && formData.emergencyName) {
       profileData.emergency_contact = {

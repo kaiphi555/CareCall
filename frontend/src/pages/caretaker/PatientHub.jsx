@@ -4,23 +4,28 @@ import StatusBadge from '../../components/StatusBadge';
 import { Link } from 'react-router-dom';
 
 export default function PatientHub() {
-  const { patients, alertsList, callHistory, addPatientByEmail, removePatient } = useData();
+  const { patients, alertsList, callHistory, addPatientByCode, removePatient } = useData();
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addEmail, setAddEmail] = useState('');
+  const [addCode, setAddCode] = useState('');
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState('');
   const [addSuccess, setAddSuccess] = useState('');
 
   const handleAddPatient = async (e) => {
     e.preventDefault();
-    if (!addEmail.trim()) return;
+    const code = addCode.trim();
+    if (!code) return;
+    if (code.length !== 8 || !/^\d{8}$/.test(code)) {
+      setAddError('Please enter a valid 8-digit code.');
+      return;
+    }
     setAddLoading(true);
     setAddError('');
     setAddSuccess('');
     try {
-      const p = await addPatientByEmail(addEmail.trim());
+      const p = await addPatientByCode(code);
       setAddSuccess(`✓ ${p.name} has been added!`);
-      setAddEmail('');
+      setAddCode('');
       setTimeout(() => { setShowAddModal(false); setAddSuccess(''); }, 1500);
     } catch (err) {
       setAddError(err.message);
@@ -49,7 +54,7 @@ export default function PatientHub() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowAddModal(false)}>
           <div className="glass rounded-2xl p-8 w-full max-w-md mx-4 animate-in" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-bold text-white mb-2">Add a Patient</h2>
-            <p className="text-white/40 text-sm mb-6">Enter the email address of the patient's CareCall account</p>
+            <p className="text-white/40 text-sm mb-6">Enter the patient's 8-digit invite code</p>
 
             {addError && (
               <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">{addError}</div>
@@ -60,14 +65,21 @@ export default function PatientHub() {
 
             <form onSubmit={handleAddPatient} className="space-y-4">
               <input
-                type="email"
-                value={addEmail}
-                onChange={e => setAddEmail(e.target.value)}
-                placeholder="patient@email.com"
-                className="w-full px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 outline-none focus:border-purple-500 text-lg transition-all"
+                type="text"
+                value={addCode}
+                onChange={e => {
+                  // Only allow digits, max 8 chars
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 8);
+                  setAddCode(val);
+                }}
+                placeholder="12345678"
+                className="w-full px-4 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 outline-none focus:border-purple-500 text-2xl text-center tracking-[0.5em] font-mono transition-all"
                 required
                 autoFocus
+                maxLength={8}
+                inputMode="numeric"
               />
+              <p className="text-xs text-white/30 text-center">Ask your patient for their invite code from their profile page</p>
               <div className="flex gap-3">
                 <button
                   type="button"
@@ -78,10 +90,10 @@ export default function PatientHub() {
                 </button>
                 <button
                   type="submit"
-                  disabled={addLoading}
+                  disabled={addLoading || addCode.length !== 8}
                   className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-xl shadow-lg transition-all disabled:opacity-50"
                 >
-                  {addLoading ? 'Searching…' : 'Add Patient'}
+                  {addLoading ? 'Linking…' : 'Link Patient'}
                 </button>
               </div>
             </form>
@@ -94,7 +106,7 @@ export default function PatientHub() {
         <div className="glass rounded-2xl p-12 text-center">
           <p className="text-3xl mb-4">👥</p>
           <p className="text-white/40 text-lg mb-2">No patients linked yet</p>
-          <p className="text-white/30 text-sm">Click "Add Patient" to link a patient by their email address</p>
+          <p className="text-white/30 text-sm">Click "Add Patient" and enter their 8-digit invite code</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -105,7 +117,6 @@ export default function PatientHub() {
 
             return (
               <div key={patient.id} className="glass rounded-2xl p-6 group relative">
-                {/* Remove button */}
                 <button
                   onClick={() => removePatient(patient.id)}
                   className="absolute top-3 right-3 w-8 h-8 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
@@ -115,7 +126,6 @@ export default function PatientHub() {
                 </button>
 
                 <Link to={`/patient-status?id=${patient.id}`} className="no-underline block">
-                  {/* Header */}
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-14 h-14 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-full flex items-center justify-center text-3xl border border-white/10">
                       {patient.avatar}
@@ -129,7 +139,6 @@ export default function PatientHub() {
                     <StatusBadge status={patient.riskLevel} />
                   </div>
 
-                  {/* Stats */}
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="bg-white/5 rounded-xl px-3 py-2.5">
                       <p className="text-xs text-white/40">Adherence</p>
@@ -141,12 +150,10 @@ export default function PatientHub() {
                     </div>
                   </div>
 
-                  {/* Wellness summary */}
                   {patient.wellnessSummary && (
                     <p className="text-sm text-white/40 line-clamp-2">{patient.wellnessSummary}</p>
                   )}
 
-                  {/* Alerts */}
                   {patientAlerts.length > 0 && (
                     <div className="mt-3 px-3 py-2 bg-red-500/10 rounded-xl border border-red-500/20">
                       <p className="text-sm text-red-400 font-medium">
