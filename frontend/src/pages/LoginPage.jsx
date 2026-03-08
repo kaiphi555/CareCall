@@ -8,17 +8,21 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) { setError('Please fill in all fields'); return; }
-    login(email, password);
-    navigate('/dashboard');
-  };
-
-  const demoLogin = (role) => {
-    login(role === 'patient' ? 'margaret@email.com' : 'david@email.com', 'demo', role);
-    navigate('/dashboard');
+    setLoading(true);
+    setError('');
+    try {
+      await login(email, password);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -50,10 +54,10 @@ export default function LoginPage() {
                 className="w-full px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 outline-none focus:border-purple-500 text-lg transition-all"
                 placeholder="Enter your password" id="login-password" />
             </div>
-            <button type="submit"
-              className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-lg font-bold rounded-xl shadow-lg shadow-purple-500/20 hover:shadow-xl transition-all hover:-translate-y-0.5"
+            <button type="submit" disabled={loading}
+              className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-lg font-bold rounded-xl shadow-lg shadow-purple-500/20 hover:shadow-xl transition-all hover:-translate-y-0.5 disabled:opacity-50"
               id="login-submit">
-              Log In
+              {loading ? 'Logging in…' : 'Log In'}
             </button>
           </form>
 
@@ -61,24 +65,6 @@ export default function LoginPage() {
             <p className="text-white/40 text-sm">Don't have an account?{' '}
               <Link to="/signup" className="text-purple-400 font-semibold no-underline hover:text-purple-300">Create Account</Link>
             </p>
-          </div>
-
-          <hr className="border-white/5 my-6" />
-
-          <div className="text-center">
-            <p className="text-white/30 text-sm mb-3">Quick Demo Login</p>
-            <div className="flex gap-3 justify-center">
-              <button onClick={() => demoLogin('patient')}
-                className="px-6 py-3 bg-purple-500/10 text-purple-400 rounded-xl font-semibold text-sm hover:bg-purple-500/20 border border-purple-500/20 transition-all"
-                id="demo-patient">
-                👤 As Patient
-              </button>
-              <button onClick={() => demoLogin('caretaker')}
-                className="px-6 py-3 bg-blue-500/10 text-blue-400 rounded-xl font-semibold text-sm hover:bg-blue-500/20 border border-blue-500/20 transition-all"
-                id="demo-caretaker">
-                🩺 As Caretaker
-              </button>
-            </div>
           </div>
         </div>
       </div>

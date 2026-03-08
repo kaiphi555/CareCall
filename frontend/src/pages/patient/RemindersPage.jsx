@@ -1,7 +1,8 @@
-import { reminders } from '../../data/mockData';
+import { useData } from '../../context/DataContext';
 import StatusBadge from '../../components/StatusBadge';
 
 export default function RemindersPage() {
+  const { reminders } = useData();
   const today = reminders.filter(r => r.date === 'Today');
   const upcoming = reminders.filter(r => r.date !== 'Today');
 

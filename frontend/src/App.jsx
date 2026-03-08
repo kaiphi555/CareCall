@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 
 import Navbar from './components/Navbar';
-import DemoToggle from './components/DemoToggle';
+
 
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
@@ -65,7 +65,7 @@ function AppRoutes() {
           <Route path="*" element={<Navigate to={user ? '/dashboard' : '/'} />} />
         </Routes>
       </main>
-      {user && <DemoToggle />}
+
     </>
   );
 }

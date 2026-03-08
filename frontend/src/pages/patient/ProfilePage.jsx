@@ -1,9 +1,10 @@
 import { useAuth } from '../../context/AuthContext';
-import { mockPatient, mockCaretaker } from '../../data/mockData';
+import { useData } from '../../context/DataContext';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
-  const profile = user?.role === 'patient' ? mockPatient : mockCaretaker;
+  const { patients } = useData();
+  const profile = user;
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 animate-in">
@@ -38,7 +39,7 @@ export default function ProfilePage() {
           {user?.role === 'caretaker' && (
             <>
               <InfoItem label="Relationship" value={profile.relationship} />
-              <InfoItem label="Patients" value={`${mockCaretaker.linkedPatients.length} linked`} />
+              <InfoItem label="Patients" value={`${patients.length} linked`} />
             </>
           )}
         </div>

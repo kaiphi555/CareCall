@@ -1,7 +1,8 @@
-import { callHistory, mockPatients } from '../../data/mockData';
+import { useData } from '../../context/DataContext';
 import StatusBadge from '../../components/StatusBadge';
 
 export default function CallLogsPage() {
+  const { callHistory, patients } = useData();
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 animate-in">
       <h1 className="text-3xl font-bold text-white mb-2">📞 Call Logs</h1>
@@ -26,7 +27,7 @@ export default function CallLogsPage() {
       {/* Call list */}
       <div className="space-y-3">
         {callHistory.map(call => {
-          const patient = mockPatients.find(p => p.id === call.patientId);
+          const patient = patients.find(p => p.id === call.patientId);
           return (
             <div key={call.id} className="glass rounded-xl p-5 flex items-center justify-between">
               <div className="flex items-center gap-4">

@@ -1,13 +1,26 @@
 import { useSearchParams } from 'react-router-dom';
-import { mockPatients, medications as allMeds, callHistory } from '../../data/mockData';
+import { useData } from '../../context/DataContext';
 import StatusBadge from '../../components/StatusBadge';
 
 export default function PatientStatusPage() {
+  const { patients, medications: allMeds, callHistory } = useData();
   const [searchParams] = useSearchParams();
-  const patientId = searchParams.get('id') || 'p1';
-  const patient = mockPatients.find(p => p.id === patientId) || mockPatients[0];
-  const patientMeds = allMeds[patientId] || [];
-  const patientCalls = callHistory.filter(c => c.patientId === patientId);
+  const patientId = searchParams.get('id');
+  const patient = patientId ? patients.find(p => p.id === patientId) : patients[0];
+
+  if (!patient) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 animate-in">
+        <h1 className="text-3xl font-bold text-white mb-8">Patient Status</h1>
+        <div className="glass rounded-2xl p-12 text-center">
+          <p className="text-white/40 text-lg">No patient found. Add patients first.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const patientMeds = allMeds[patient.id] || [];
+  const patientCalls = (callHistory || []).filter(c => c.patientId === patient.id);
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 animate-in">

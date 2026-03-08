@@ -1,34 +1,40 @@
-import { useState } from 'react';
-import { mockPatients, medications as allMeds } from '../../data/mockData';
+import { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { triggerCall } from '../../services/api';
 
 export default function ScheduleCallPage() {
-  const { calls, scheduleCall, cancelCall } = useData();
+  const { patients, medications: allMeds, calls, scheduleCall, cancelCall } = useData();
   const [showForm, setShowForm] = useState(false);
-  const [callStatus, setCallStatus] = useState({}); // { [callId]: 'calling' | 'success' | 'error' }
+  const [callStatus, setCallStatus] = useState({});
   const [form, setForm] = useState({
-    patientId: 'p1',
+    patientId: '',
     date: '',
     time: '',
     purpose: 'Medication reminder',
   });
 
+  // Set default patientId when patients load
+  useEffect(() => {
+    if (patients.length > 0 && !form.patientId) {
+      setForm(prev => ({ ...prev, patientId: patients[0].id }));
+    }
+  }, [patients]);
+
   const update = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const patient = mockPatients.find(p => p.id === form.patientId);
+    const patient = patients.find(p => p.id === form.patientId);
     scheduleCall({
       ...form,
       patientName: patient?.name || 'Unknown',
     });
-    setForm({ patientId: 'p1', date: '', time: '', purpose: 'Medication reminder' });
+    setForm({ patientId: patients[0]?.id || '', date: '', time: '', purpose: 'Medication reminder' });
     setShowForm(false);
   };
 
   const handleCallNow = async (call) => {
-    const patient = mockPatients.find(p => p.id === call.patientId);
+    const patient = patients.find(p => p.id === call.patientId);
     if (!patient) return;
 
     // Get the first medication for this patient as the reminder subject
@@ -86,7 +92,7 @@ export default function ScheduleCallPage() {
                 onChange={e => update('patientId', e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white outline-none focus:border-purple-500 transition-all"
               >
-                {mockPatients.map(p => (
+                {patients.map(p => (
                   <option key={p.id} value={p.id} className="bg-gray-900">{p.name}</option>
                 ))}
               </select>

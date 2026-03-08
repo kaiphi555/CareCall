@@ -1,83 +1,165 @@
 import { useState } from 'react';
-import { mockPatients, mockCaretaker, callHistory } from '../../data/mockData';
 import { useData } from '../../context/DataContext';
 import StatusBadge from '../../components/StatusBadge';
 import { Link } from 'react-router-dom';
 
 export default function PatientHub() {
-  const { alertsList } = useData();
-  const linkedPatients = mockPatients.filter(p =>
-    mockCaretaker.linkedPatients.includes(p.id)
-  );
+  const { patients, alertsList, callHistory, addPatientByEmail, removePatient } = useData();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addEmail, setAddEmail] = useState('');
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [addSuccess, setAddSuccess] = useState('');
+
+  const handleAddPatient = async (e) => {
+    e.preventDefault();
+    if (!addEmail.trim()) return;
+    setAddLoading(true);
+    setAddError('');
+    setAddSuccess('');
+    try {
+      const p = await addPatientByEmail(addEmail.trim());
+      setAddSuccess(`✓ ${p.name} has been added!`);
+      setAddEmail('');
+      setTimeout(() => { setShowAddModal(false); setAddSuccess(''); }, 1500);
+    } catch (err) {
+      setAddError(err.message);
+    } finally {
+      setAddLoading(false);
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 animate-in">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">My Patients</h1>
-        <p className="text-white/50">{linkedPatients.length} patients under your care</p>
+      <header className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">My Patients</h1>
+          <p className="text-white/50">{patients.length} patient{patients.length !== 1 ? 's' : ''} under your care</p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-purple-500/20"
+        >
+          + Add Patient
+        </button>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {linkedPatients.map(patient => {
-          const patientAlerts = alertsList.filter(a => a.patientId === patient.id && a.priority === 'high');
-          const patientCalls = callHistory.filter(c => c.patientId === patient.id);
-          const answeredCalls = patientCalls.filter(c => c.answered).length;
+      {/* Add Patient Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowAddModal(false)}>
+          <div className="glass rounded-2xl p-8 w-full max-w-md mx-4 animate-in" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-white mb-2">Add a Patient</h2>
+            <p className="text-white/40 text-sm mb-6">Enter the email address of the patient's CareCall account</p>
 
-          return (
-            <Link
-              key={patient.id}
-              to={`/patient-status?id=${patient.id}`}
-              className="glass rounded-2xl p-6 hover:bg-white/[0.08] transition-all group no-underline block"
-            >
-              {/* Header */}
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-14 h-14 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-full flex items-center justify-center text-3xl border border-white/10">
-                  {patient.avatar}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-bold text-white truncate group-hover:text-purple-300 transition-colors">
-                    {patient.name}
-                  </h3>
-                  <p className="text-white/40 text-sm">Age {patient.age}</p>
-                </div>
-                <StatusBadge status={patient.riskLevel} />
+            {addError && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">{addError}</div>
+            )}
+            {addSuccess && (
+              <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-sm">{addSuccess}</div>
+            )}
+
+            <form onSubmit={handleAddPatient} className="space-y-4">
+              <input
+                type="email"
+                value={addEmail}
+                onChange={e => setAddEmail(e.target.value)}
+                placeholder="patient@email.com"
+                className="w-full px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 outline-none focus:border-purple-500 text-lg transition-all"
+                required
+                autoFocus
+              />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white/60 font-semibold rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addLoading}
+                  className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-xl shadow-lg transition-all disabled:opacity-50"
+                >
+                  {addLoading ? 'Searching…' : 'Add Patient'}
+                </button>
               </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-white/5 rounded-xl px-3 py-2.5">
-                  <p className="text-xs text-white/40">Adherence</p>
-                  <p className="text-lg font-bold text-white">{patient.adherencePercent}%</p>
-                </div>
-                <div className="bg-white/5 rounded-xl px-3 py-2.5">
-                  <p className="text-xs text-white/40">Calls Answered</p>
-                  <p className="text-lg font-bold text-white">{answeredCalls}/{patientCalls.length}</p>
-                </div>
-              </div>
-
-              {/* Wellness summary */}
-              <p className="text-sm text-white/40 line-clamp-2">{patient.wellnessSummary}</p>
-
-              {/* Alerts */}
-              {patientAlerts.length > 0 && (
-                <div className="mt-3 px-3 py-2 bg-red-500/10 rounded-xl border border-red-500/20">
-                  <p className="text-sm text-red-400 font-medium">
-                    ⚠️ {patientAlerts.length} high-priority alert{patientAlerts.length > 1 ? 's' : ''}
-                  </p>
-                </div>
-              )}
-            </Link>
-          );
-        })}
-
-        {/* Add patient card */}
-        <button className="glass rounded-2xl p-6 border-2 border-dashed border-white/10 hover:border-purple-500/30 hover:bg-white/[0.03] transition-all flex flex-col items-center justify-center min-h-[240px] group">
-          <div className="w-14 h-14 rounded-full bg-white/5 group-hover:bg-purple-500/10 flex items-center justify-center text-3xl text-white/30 group-hover:text-purple-400 transition-all mb-3">
-            +
+            </form>
           </div>
-          <p className="text-white/30 group-hover:text-purple-400 font-medium transition-colors">Add Patient</p>
-        </button>
-      </div>
+        </div>
+      )}
+
+      {/* Patient cards */}
+      {patients.length === 0 ? (
+        <div className="glass rounded-2xl p-12 text-center">
+          <p className="text-3xl mb-4">👥</p>
+          <p className="text-white/40 text-lg mb-2">No patients linked yet</p>
+          <p className="text-white/30 text-sm">Click "Add Patient" to link a patient by their email address</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {patients.map(patient => {
+            const patientAlerts = alertsList.filter(a => a.patientId === patient.id && a.priority === 'high');
+            const patientCalls = (callHistory || []).filter(c => c.patientId === patient.id);
+            const answeredCalls = patientCalls.filter(c => c.answered).length;
+
+            return (
+              <div key={patient.id} className="glass rounded-2xl p-6 group relative">
+                {/* Remove button */}
+                <button
+                  onClick={() => removePatient(patient.id)}
+                  className="absolute top-3 right-3 w-8 h-8 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+                  title="Remove patient"
+                >
+                  ✕
+                </button>
+
+                <Link to={`/patient-status?id=${patient.id}`} className="no-underline block">
+                  {/* Header */}
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-14 h-14 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-full flex items-center justify-center text-3xl border border-white/10">
+                      {patient.avatar}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-bold text-white truncate group-hover:text-purple-300 transition-colors">
+                        {patient.name}
+                      </h3>
+                      <p className="text-white/40 text-sm">{patient.age ? `Age ${patient.age}` : patient.email}</p>
+                    </div>
+                    <StatusBadge status={patient.riskLevel} />
+                  </div>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-white/5 rounded-xl px-3 py-2.5">
+                      <p className="text-xs text-white/40">Adherence</p>
+                      <p className="text-lg font-bold text-white">{patient.adherencePercent}%</p>
+                    </div>
+                    <div className="bg-white/5 rounded-xl px-3 py-2.5">
+                      <p className="text-xs text-white/40">Calls Answered</p>
+                      <p className="text-lg font-bold text-white">{answeredCalls}/{patientCalls.length}</p>
+                    </div>
+                  </div>
+
+                  {/* Wellness summary */}
+                  {patient.wellnessSummary && (
+                    <p className="text-sm text-white/40 line-clamp-2">{patient.wellnessSummary}</p>
+                  )}
+
+                  {/* Alerts */}
+                  {patientAlerts.length > 0 && (
+                    <div className="mt-3 px-3 py-2 bg-red-500/10 rounded-xl border border-red-500/20">
+                      <p className="text-sm text-red-400 font-medium">
+                        ⚠️ {patientAlerts.length} high-priority alert{patientAlerts.length > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  )}
+                </Link>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

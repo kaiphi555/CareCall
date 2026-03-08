@@ -1,9 +1,8 @@
 import { useData } from '../../context/DataContext';
-import { mockPatients } from '../../data/mockData';
 import StatusBadge from '../../components/StatusBadge';
 
 export default function AlertsPage() {
-  const { alertsList } = useData();
+  const { alertsList, patients } = useData();
 
   const high = alertsList.filter(a => a.priority === 'high');
   const medium = alertsList.filter(a => a.priority === 'medium');
@@ -18,7 +17,7 @@ export default function AlertsPage() {
         <section className="mb-8">
           <h2 className="text-lg font-semibold text-red-400 mb-3">High Priority</h2>
           <div className="space-y-3">
-            {high.map(a => <AlertCard key={a.id} alert={a} />)}
+            {high.map(a => <AlertCard key={a.id} alert={a} patients={patients} />)}
           </div>
         </section>
       )}
@@ -27,7 +26,7 @@ export default function AlertsPage() {
         <section className="mb-8">
           <h2 className="text-lg font-semibold text-amber-400 mb-3">Medium Priority</h2>
           <div className="space-y-3">
-            {medium.map(a => <AlertCard key={a.id} alert={a} />)}
+            {medium.map(a => <AlertCard key={a.id} alert={a} patients={patients} />)}
           </div>
         </section>
       )}
@@ -36,7 +35,7 @@ export default function AlertsPage() {
         <section>
           <h2 className="text-lg font-semibold text-blue-400 mb-3">Low Priority</h2>
           <div className="space-y-3">
-            {low.map(a => <AlertCard key={a.id} alert={a} />)}
+            {low.map(a => <AlertCard key={a.id} alert={a} patients={patients} />)}
           </div>
         </section>
       )}
@@ -44,8 +43,8 @@ export default function AlertsPage() {
   );
 }
 
-function AlertCard({ alert }) {
-  const patient = mockPatients.find(p => p.id === alert.patientId);
+function AlertCard({ alert, patients }) {
+  const patient = (patients || []).find(p => p.id === alert.patientId);
   const borderColor = {
     high: 'border-l-red-500 bg-red-500/5',
     medium: 'border-l-amber-500 bg-amber-500/5',

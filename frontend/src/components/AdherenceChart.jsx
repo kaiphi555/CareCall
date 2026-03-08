@@ -1,14 +1,25 @@
-import { adherenceData } from '../data/mockData';
+import { useData } from '../context/DataContext';
 
 export default function AdherenceChart() {
-  const maxTotal = Math.max(...adherenceData.map(d => d.total));
+  const { adherenceData } = useData();
+
+  if (!adherenceData || adherenceData.length === 0) {
+    return (
+      <div className="glass rounded-2xl p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Weekly Medication Adherence</h3>
+        <p className="text-white/30 text-sm py-8 text-center">No adherence data yet.</p>
+      </div>
+    );
+  }
+
+  const maxTotal = Math.max(...adherenceData.map(d => d.total), 1); // min 1 to prevent div-by-zero
 
   return (
     <div className="glass rounded-2xl p-6">
       <h3 className="text-lg font-semibold text-white mb-4">Weekly Medication Adherence</h3>
       <div className="flex items-end justify-between gap-3 h-48">
         {adherenceData.map((d) => {
-          const height = (d.taken / maxTotal) * 100;
+          const height = maxTotal > 0 ? (d.taken / maxTotal) * 100 : 0;
           const missed = d.total - d.taken;
           return (
             <div key={d.day} className="flex flex-col items-center flex-1 h-full justify-end">

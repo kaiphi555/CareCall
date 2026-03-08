@@ -1,6 +1,10 @@
-import { mockCaretaker } from '../../data/mockData';
+import { useAuth } from '../../context/AuthContext';
+import { useData } from '../../context/DataContext';
 
 export default function CaretakerProfilePage() {
+  const { user } = useAuth();
+  const { patients } = useData();
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 animate-in">
       <h1 className="text-3xl font-bold text-white mb-8">👤 Profile</h1>
@@ -10,17 +14,17 @@ export default function CaretakerProfilePage() {
             🩺
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-white">{mockCaretaker.name}</h2>
+            <h2 className="text-2xl font-bold text-white">{user?.name || 'Caretaker'}</h2>
             <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase bg-blue-500/20 text-blue-300 border border-blue-500/20 mt-1">
               Caretaker
             </span>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <InfoItem label="Email" value={mockCaretaker.email} />
-          <InfoItem label="Phone" value={mockCaretaker.phone} />
-          <InfoItem label="Relationship" value={mockCaretaker.relationship} />
-          <InfoItem label="Linked Patients" value={`${mockCaretaker.linkedPatients.length} patients`} />
+          <InfoItem label="Email" value={user?.email} />
+          <InfoItem label="Phone" value={user?.phone} />
+          <InfoItem label="Relationship" value={user?.relationship} />
+          <InfoItem label="Linked Patients" value={`${patients.length} patients`} />
         </div>
       </div>
     </div>

@@ -7,6 +7,8 @@ export default function SignupPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState('role'); // 'role' | 'form'
   const [role, setRole] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: '', age: '', phone: '', email: '', password: '',
     emergencyName: '', emergencyPhone: '',
@@ -16,10 +18,18 @@ export default function SignupPage() {
 
   const update = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    signup({ ...form, role });
-    navigate('/dashboard');
+    setLoading(true);
+    setError('');
+    try {
+      await signup(form, role);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Signup failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (step === 'role') {
@@ -81,19 +91,23 @@ export default function SignupPage() {
             {role === 'patient' ? 'Set up your medication reminder account' : 'Set up your account to monitor a loved one'}
           </p>
 
+          {error && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">{error}</div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <InputField label="Full Name" required value={form.name} onChange={v => update('name', v)} placeholder={role === 'patient' ? 'Margaret Johnson' : 'David Johnson'} />
             {role === 'patient' && (
               <div className="grid grid-cols-2 gap-4">
                 <InputField label="Age" required type="number" value={form.age} onChange={v => update('age', v)} placeholder="78" />
-                <InputField label="Phone Number" required type="tel" value={form.phone} onChange={v => update('phone', v)} placeholder="(555) 234-5678" />
+                <InputField label="Phone Number" required type="tel" value={form.phone} onChange={v => update('phone', v)} placeholder="+18135551234" />
               </div>
             )}
             {role === 'caretaker' && (
-              <InputField label="Phone Number" required type="tel" value={form.phone} onChange={v => update('phone', v)} placeholder="(555) 876-5432" />
+              <InputField label="Phone Number" required type="tel" value={form.phone} onChange={v => update('phone', v)} placeholder="+18135551234" />
             )}
             <InputField label="Email" required type="email" value={form.email} onChange={v => update('email', v)} placeholder="you@email.com" />
-            <InputField label="Password" required type="password" value={form.password} onChange={v => update('password', v)} placeholder="Create a password" />
+            <InputField label="Password" required type="password" value={form.password} onChange={v => update('password', v)} placeholder="Min 6 characters" />
 
             <hr className="border-white/5 my-4" />
 
@@ -102,7 +116,7 @@ export default function SignupPage() {
                 <p className="text-sm font-semibold text-white/60">Emergency Contact</p>
                 <div className="grid grid-cols-2 gap-4">
                   <InputField label="Contact Name" value={form.emergencyName} onChange={v => update('emergencyName', v)} placeholder="David Johnson" />
-                  <InputField label="Contact Phone" value={form.emergencyPhone} onChange={v => update('emergencyPhone', v)} placeholder="(555) 876-5432" />
+                  <InputField label="Contact Phone" value={form.emergencyPhone} onChange={v => update('emergencyPhone', v)} placeholder="+18135559876" />
                 </div>
                 <p className="text-sm font-semibold text-white/60">Reminder Preferences</p>
                 <div className="grid grid-cols-2 gap-4">
@@ -128,9 +142,9 @@ export default function SignupPage() {
               </>
             )}
 
-            <button type="submit"
-              className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-lg font-bold rounded-xl shadow-lg shadow-purple-500/20 hover:shadow-xl mt-4 transition-all hover:-translate-y-0.5">
-              Create {role === 'patient' ? 'Patient' : 'Caretaker'} Account
+            <button type="submit" disabled={loading}
+              className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-lg font-bold rounded-xl shadow-lg shadow-purple-500/20 hover:shadow-xl mt-4 transition-all hover:-translate-y-0.5 disabled:opacity-50">
+              {loading ? 'Creating Account…' : `Create ${role === 'patient' ? 'Patient' : 'Caretaker'} Account`}
             </button>
           </form>
           <p className="text-center mt-6 text-white/40 text-sm">

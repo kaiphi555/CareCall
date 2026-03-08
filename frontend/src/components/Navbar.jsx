@@ -65,7 +65,7 @@ export default function Navbar() {
               {user.role}
             </span>
             <button
-              onClick={() => { logout(); navigate('/'); }}
+              onClick={async () => { await logout(); navigate('/'); }}
               className="px-3 py-2 text-sm font-medium text-white/40 hover:text-red-400 rounded-xl hover:bg-red-500/10 transition-all"
             >
               Log out
@@ -91,7 +91,7 @@ export default function Navbar() {
             </Link>
           ))}
           <button
-            onClick={() => { logout(); navigate('/'); }}
+            onClick={async () => { await logout(); navigate('/'); }}
             className="ml-auto px-3 py-2 text-sm font-medium text-white/40 hover:text-red-400 rounded-xl hover:bg-red-500/10 whitespace-nowrap transition-all"
           >
             Log out

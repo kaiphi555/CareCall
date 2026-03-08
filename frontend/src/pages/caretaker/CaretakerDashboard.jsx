@@ -1,21 +1,26 @@
-import { mockPatients, callHistory, medications as allMeds, adherenceData } from '../../data/mockData';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import StatusBadge from '../../components/StatusBadge';
 import AdherenceChart from '../../components/AdherenceChart';
 import { Link } from 'react-router-dom';
 
 export default function CaretakerDashboard() {
-  const { alertsList, wellnessSubmissions } = useData();
+  const { patients, alertsList, wellnessSubmissions } = useData();
+  const { user } = useAuth();
 
-  const totalPatients = mockPatients.length;
-  const highRiskCount = mockPatients.filter(p => p.riskLevel === 'High').length;
-  const avgAdherence = Math.round(mockPatients.reduce((s, p) => s + p.adherencePercent, 0) / totalPatients);
+  const totalPatients = patients.length;
+  const highRiskCount = patients.filter(p => p.riskLevel === 'High').length;
+  const avgAdherence = totalPatients > 0
+    ? Math.round(patients.reduce((s, p) => s + (p.adherencePercent || 0), 0) / totalPatients)
+    : 0;
   const activeAlerts = alertsList.filter(a => a.priority === 'high').length;
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6 animate-in">
       <header className="mb-4">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white">Caretaker Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">
+          {user?.name ? `Welcome, ${user.name.split(' ')[0]}` : 'Caretaker Dashboard'}
+        </h1>
         <p className="text-white/50 mt-1">Monitoring {totalPatients} patients</p>
       </header>
 
@@ -35,7 +40,7 @@ export default function CaretakerDashboard() {
             <Link to="/patients" className="text-sm text-purple-400 no-underline hover:text-purple-300">View all →</Link>
           </div>
           <div className="space-y-3">
-            {mockPatients.map(p => (
+            {patients.map(p => (
               <Link
                 key={p.id}
                 to={`/patient-status?id=${p.id}`}
@@ -45,7 +50,7 @@ export default function CaretakerDashboard() {
                   <span className="text-2xl">{p.avatar}</span>
                   <div>
                     <p className="font-medium text-white">{p.name}</p>
-                    <p className="text-sm text-white/40">Adherence: {p.adherencePercent}%</p>
+                    <p className="text-sm text-white/40">Adherence: {p.adherencePercent || 0}%</p>
                   </div>
                 </div>
                 <StatusBadge status={p.riskLevel} size="sm" />

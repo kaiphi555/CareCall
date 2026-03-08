@@ -1,32 +1,44 @@
 import { useState } from 'react';
-import { medications as allMeds, reminders, callHistory, mockPatient } from '../../data/mockData';
 import { useData } from '../../context/DataContext';
 import StatusBadge from '../../components/StatusBadge';
-
-const patientMeds = allMeds.p1 || [];
+import { useAuth } from '../../context/AuthContext';
 
 export default function PatientDashboard() {
+  const { user } = useAuth();
+  const { medications, reminders, callHistory } = useData();
+
+  const patientMeds = medications[user?.id] || medications['p1'] || [];
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6 animate-in">
       <header className="mb-4">
         <h1 className="text-3xl sm:text-4xl font-bold text-white">
-          Good morning, {mockPatient.name.split(' ')[0]} 👋
+          Good morning, {user?.name?.split(' ')[0] || 'there'} 👋
         </h1>
         <p className="text-lg text-white/50 mt-1">Here's your health summary for today.</p>
       </header>
 
-      <TodaysReminder />
+      <TodaysReminder meds={patientMeds} />
       <QuickWellness />
-      <UpcomingSchedule />
-      <CallHistorySection />
-      <EmergencyContactCard />
+      <UpcomingSchedule reminders={reminders} />
+      <CallHistorySection callHistory={callHistory} userId={user?.id} />
+      <EmergencyContactCard user={user} />
     </div>
   );
 }
 
-function TodaysReminder() {
-  const nextMed = patientMeds.find(m => m.status === 'upcoming') || patientMeds[0];
-  const takenCount = patientMeds.filter(m => m.status === 'taken').length;
+function TodaysReminder({ meds }) {
+  const nextMed = meds.find(m => m.status === 'upcoming') || meds[0];
+  const takenCount = meds.filter(m => m.status === 'taken').length;
+
+  if (!nextMed) {
+    return (
+      <section className="glass rounded-2xl p-6 sm:p-8">
+        <h2 className="text-xl font-bold text-white mb-4">💊 Today's Reminders</h2>
+        <p className="text-white/40">No medications configured yet.</p>
+      </section>
+    );
+  }
 
   return (
     <section className="glass rounded-2xl p-6 sm:p-8" aria-labelledby="todays-reminder">
@@ -42,9 +54,9 @@ function TodaysReminder() {
           <StatusBadge status={nextMed.status} size="lg" />
         </div>
       </div>
-      <p className="text-sm text-white/40 mb-3">{takenCount} of {patientMeds.length} medications taken today</p>
+      <p className="text-sm text-white/40 mb-3">{takenCount} of {meds.length} medications taken today</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {patientMeds.map(med => (
+        {meds.map(med => (
           <div key={med.id} className="flex items-center justify-between bg-white/5 rounded-xl px-4 py-3">
             <div>
               <p className="font-medium text-white">{med.name}</p>
@@ -73,7 +85,7 @@ function QuickWellness() {
   );
 }
 
-function UpcomingSchedule() {
+function UpcomingSchedule({ reminders }) {
   return (
     <section className="glass rounded-2xl p-6 sm:p-8" aria-labelledby="upcoming-schedule">
       <h2 id="upcoming-schedule" className="text-xl font-bold text-white mb-4">📅 Upcoming Schedule</h2>
@@ -97,8 +109,8 @@ function UpcomingSchedule() {
   );
 }
 
-function CallHistorySection() {
-  const recent = callHistory.filter(c => c.patientId === 'p1').slice(0, 4);
+function CallHistorySection({ callHistory, userId }) {
+  const recent = callHistory.filter(c => c.patientId === userId || c.patientId === 'p1').slice(0, 4);
 
   return (
     <section className="glass rounded-2xl p-6 sm:p-8" aria-labelledby="call-history">
@@ -125,8 +137,9 @@ function CallHistorySection() {
   );
 }
 
-function EmergencyContactCard() {
-  const { emergencyContact } = mockPatient;
+function EmergencyContactCard({ user }) {
+  const emergencyContact = user?.emergencyContact || user?.emergency_contact;
+  if (!emergencyContact) return null;
 
   return (
     <section className="bg-red-500/10 rounded-2xl p-6 sm:p-8 border border-red-500/15" aria-labelledby="emergency-contact">
